@@ -1,10 +1,10 @@
-# Keep the already validated TeX Live packages while replacing the application.
-ARG TEXLIVE_IMAGE=docker.io/hsci/overleaf-ce-openshift:6.3.0-openshift.3@sha256:2b18c22d077b48e531bd82fd2f89c5eaeeec710e178bc06acd48a2709313c181
+# Extend upstream CE+ directly, including its bundled TeX Live installation.
 ARG OVERLEAF_BASE_IMAGE=overleafcep/sharelatex:6.3.0-ext-v5.1@sha256:3077cb674adff9155d5f7f3ddbb52c384565adbb1011f610706e7ae3dfd8d962
-FROM ${TEXLIVE_IMAGE} AS texlive
 FROM ${OVERLEAF_BASE_IMAGE}
 USER root
-COPY --from=texlive /usr/local/texlive /usr/local/texlive
+ARG TEXLIVE_PACKAGES="collection-latexrecommended collection-fontsrecommended collection-latexextra collection-bibtexextra collection-xetex collection-luatex"
+RUN tlmgr option docfiles 0 && tlmgr option srcfiles 0 && \
+    tlmgr update --self && tlmgr install ${TEXLIVE_PACKAGES} && tlmgr path add
 # Install the native tools required for fonts and optional document conversion.
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources && \
     apt-get update && apt-get install -y --no-install-recommends fontconfig pandoc zip && \

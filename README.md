@@ -43,10 +43,10 @@ Repository: `docker.io/hsci/overleaf-cep-openshift`.
 
 | Tag | TeX Live packages |
 | --- | --- |
-| `6.3.0-ext-v5.1-openshift.1` | Common LaTeX packages, recommended fonts, bibliography tools, XeTeX and LuaTeX; chart default |
-| `6.3.0-ext-v5.1-openshift.1-full` | All TeX Live packages (`scheme-full`); larger download |
+| `6.3.0-ext-v5.1-openshift.3` | Common LaTeX packages, recommended fonts, bibliography tools, XeTeX and LuaTeX; chart default |
+| `6.3.0-ext-v5.1-openshift.3-full` | All TeX Live packages (`scheme-full`); larger download |
 
-Choose the full image with `image.tag: 6.3.0-ext-v5.1-openshift.1-full`. Packages are baked
+Choose the full image with `image.tag: 6.3.0-ext-v5.1-openshift.3-full`. Packages are baked
 into the images; do not install them in a running pod.
 
 To build/publish your own copies:

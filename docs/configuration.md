@@ -99,6 +99,6 @@ oc exec statefulset/overleaf-mongo -- mongosh --quiet mongodb://127.0.0.1/sharel
 Configuration follows the [CE+ wiki](https://github.com/yu-i-i/overleaf-cep/wiki)
 and [upstream environment variables](https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/environment-variables).
 The application base is pinned to `overleafcep/sharelatex:6.3.0-ext-v5.1` by digest.
-The image carries over the validated TeX Live 2026 packages from our earlier
-OpenShift images, adapts startup/nginx for arbitrary UIDs, and supplies the required
+The image installs TeX Live packages directly into the upstream CE+ base,
+adapts startup/nginx for arbitrary UIDs, and supplies the required
 `analyticsId` omitted by CE+ v5.1's public registration helper.

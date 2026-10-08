@@ -1,6 +1,6 @@
 image:
   repository: docker.io/hsci/overleaf-cep-openshift
-  tag: "6.3.0-ext-v5.1-openshift.1"
+  tag: "6.3.0-ext-v5.1-openshift.3"
 route:
   host: overleaf.apps.example.org
 fullnameOverride: overleaf

@@ -1,7 +1,7 @@
 # Alternatively build images/overleaf and publish to your own registry.
 image:
   repository: docker.io/hsci/overleaf-cep-openshift
-  tag: "6.3.0-ext-v5.1-openshift.1"
+  tag: "6.3.0-ext-v5.1-openshift.3"
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 nameOverride: ""
