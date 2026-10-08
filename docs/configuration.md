@@ -102,3 +102,19 @@ The application base is pinned to `overleafcep/sharelatex:6.3.0-ext-v5.1` by dig
 The image installs TeX Live packages directly into the upstream CE+ base,
 adapts startup/nginx for arbitrary UIDs, and supplies the required
 `analyticsId` omitted by CE+ v5.1's public registration helper.
+
+## Publishing images
+
+Set the repository Actions variable `DOCKERHUB_USERNAME` and Secret
+`DOCKERHUB_TOKEN` (a Docker Hub access token with write access to your image
+repository). `DOCKERHUB_IMAGE` optionally overrides the Makefile repository.
+The publisher builds the default and `-full` images directly from upstream CE+.
+Normal pushes and pull requests validate the chart; image publication runs on
+manual dispatch or an image-version tag:
+
+```sh
+git tag image-6.3.0-ext-v5.1-openshift.3
+git push origin image-6.3.0-ext-v5.1-openshift.3
+```
+
+Use a new image version for each release and update `image.tag` in your values.

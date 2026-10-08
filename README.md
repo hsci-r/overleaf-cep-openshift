@@ -57,6 +57,10 @@ make image image-full IMAGE_REPOSITORY=docker.io/YOUR_ACCOUNT/overleaf-cep-opens
 make push push-full IMAGE_REPOSITORY=docker.io/YOUR_ACCOUNT/overleaf-cep-openshift
 ```
 
+GitHub Actions publishes both variants on `image-*` tags or manual dispatch.
+Set `DOCKERHUB_USERNAME` as an Actions variable and `DOCKERHUB_TOKEN` as a Secret;
+see [publishing](docs/configuration.md#publishing-images).
+
 ## Operations
 
 Use `oc logs deployment/overleaf` for startup errors. Configure `smtp` for email
