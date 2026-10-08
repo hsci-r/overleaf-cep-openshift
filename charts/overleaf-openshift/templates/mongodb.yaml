@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "overleaf.fullname" . }}-mongo
+  labels:
+    {{- include "overleaf.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "overleaf.fullname" . }}-mongo-headless
+  selector:
+    matchLabels:
+      {{- include "overleaf.selector" . | nindent 6 }}
+      app.kubernetes.io/component: mongodb
+  template:
+    metadata:
+      labels:
+        {{- include "overleaf.selector" . | nindent 8 }}
+        app.kubernetes.io/component: mongodb
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      containers:
+        - name: mongodb
+          image: {{ .Values.mongodb.image | quote }}
+          securityContext:
+            {{- include "overleaf.securityContext" . | nindent 12 }}
+          command: [/bin/bash, -ec]
+          args:
+            - |
+              mongod --bind_ip_all --replSet overleaf --dbpath /data/db \
+                --wiredTigerCacheSizeGB "$MONGO_CACHE_GB" &
+              pid=$!
+              trap 'kill -TERM "$pid"; wait "$pid"; exit' TERM INT
+              # Bootstrap locally, advertise the stable headless-Service DNS name.
+              # publishNotReadyAddresses resolves it before PRIMARY/readiness.
+              until mongosh --quiet --host 127.0.0.1 --eval '
+                try { rs.status(); } catch (e) {
+                  if (e.code !== 94) throw e;
+                  rs.initiate({_id: "overleaf", members: [{_id: 0, host: process.env.MONGO_RS_HOST + ":27017"}]});
+                }
+              '; do
+                kill -0 "$pid" || { wait "$pid"; exit 1; }
+                sleep 2
+              done
+              wait "$pid"
+          env:
+            - name: HOME
+              value: /tmp
+            - name: MONGO_CACHE_GB
+              value: {{ .Values.mongodb.wiredTigerCacheSizeGB | quote }}
+            - name: MONGO_RS_HOST
+              value: {{ include "overleaf.mongoHost" . | quote }}
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          startupProbe:
+            exec:
+              command: [mongosh, --quiet, --host, "127.0.0.1", --eval, "quit(db.hello().isWritablePrimary ? 0 : 1)"]
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: [mongosh, --quiet, --host, "127.0.0.1", --eval, "quit(db.hello().isWritablePrimary ? 0 : 1)"]
+            periodSeconds: 10
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: [mongosh, --quiet, --host, "127.0.0.1", --eval, "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.mongodb.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "overleaf.claim" (dict "root" . "component" "mongodb") }}

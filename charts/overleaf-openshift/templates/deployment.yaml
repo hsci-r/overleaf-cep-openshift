@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "overleaf.fullname" . }}
+  labels:
+    {{- include "overleaf.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "overleaf.selector" . | nindent 6 }}
+      app.kubernetes.io/component: overleaf
+  template:
+    metadata:
+      labels:
+        {{- include "overleaf.selector" . | nindent 8 }}
+        app.kubernetes.io/component: overleaf
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: overleaf
+          image: {{ printf "%s:%s" (required "Set image.repository to your built images/overleaf image" .Values.image.repository) .Values.image.tag | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- include "overleaf.securityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8088
+          envFrom:
+            - configMapRef:
+                name: {{ include "overleaf.fullname" . }}
+            {{- range $secret := list .Values.smtp.existingSecret .Values.authentication.existingSecret .Values.integrations.existingSecret | uniq }}
+            {{- if $secret }}
+            - secretRef:
+                name: {{ $secret }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            {{- $root := . }}
+            {{- range list "OVERLEAF_INVITE_TOKEN_SECRET" "WEB_API_PASSWORD" "STAGING_PASSWORD" "V1_HISTORY_PASSWORD" "CRYPTO_RANDOM" "OT_JWT_AUTH_KEY" }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "Set secrets.existingSecret" $root.Values.secrets.existingSecret }}
+                  key: {{ . }}
+            {{- end }}
+            {{- range $name, $value := .Values.extraEnv }}
+            - name: {{ $name }}
+              value: {{ $value | toString | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /status
+              port: http
+            timeoutSeconds: 5
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          readinessProbe:
+            exec:
+              command: [python3, /usr/local/lib/overleaf-openshift/healthcheck.py]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # The web service binds to loopback; kubelet TCP probes use the pod IP.
+          # Dependency failures affect readiness; runit restarts crashed services.
+          livenessProbe:
+            exec:
+              command:
+                - python3
+                - -c
+                - "import socket; socket.create_connection(('127.0.0.1', 4000), timeout=3).close()"
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/overleaf
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-overleaf" (include "overleaf.fullname" .)) .Values.persistence.existingClaim }}

@@ -1,0 +1,29 @@
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "overleaf.fullname" . }}
+  labels:
+    {{- include "overleaf.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.route.annotations | nindent 4 }}
+spec:
+  host: {{ required "Set route.host" .Values.route.host | quote }}
+  to:
+    kind: Service
+    name: {{ include "overleaf.fullname" . }}
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+    {{- with .Values.route.tls.certificate }}
+    certificate: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.route.tls.key }}
+    key: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.route.tls.caCertificate }}
+    caCertificate: {{ . | quote }}
+    {{- end }}
+{{- end }}

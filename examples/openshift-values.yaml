@@ -1,0 +1,28 @@
+image:
+  repository: docker.io/hsci/overleaf-cep-openshift
+  tag: "6.3.0-ext-v5.1-openshift.1"
+route:
+  host: overleaf.apps.example.org
+fullnameOverride: overleaf
+adminEmail: support@example.org
+secrets:
+  existingSecret: overleaf-secrets
+# Empty storageClass values select the cluster default; override each if needed.
+# registration:
+#   enabled: true
+#   allowedEmailDomains: [example.org]
+# smtp:
+#   host: smtp.example.org
+#   port: 587
+#   sender: overleaf@example.org
+#   existingSecret: overleaf-smtp # OVERLEAF_EMAIL_SMTP_USER / PASS
+# compilation:
+#   timeoutSeconds: 600
+#   requestSizeMB: 50
+# nginx:
+#   proxyTimeoutSeconds: 900
+# templateGallery:
+#   enabled: true
+# features:
+#   historyRestore: true
+#   pandocConversions: true

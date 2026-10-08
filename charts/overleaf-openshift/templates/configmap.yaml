@@ -1,0 +1,36 @@
+{{- $managed := list "OVERLEAF_APP_NAME" "OVERLEAF_ADMIN_EMAIL" "OVERLEAF_MONGO_URL" "OVERLEAF_REDIS_HOST" "OVERLEAF_REDIS_PORT" "REDIS_HOST" "REDIS_PORT" "OVERLEAF_SITE_URL" "OVERLEAF_BEHIND_PROXY" "V1_HISTORY_URL" "SANDBOXED_COMPILES" "SANDBOXED_COMPILES_SIBLING_CONTAINERS" "DOCKER_RUNNER" "GIT_BRIDGE_ENABLED" "ENABLE_CONVERSIONS" "EMAIL_CONFIRMATION_DISABLED" "OVERLEAF_INVITE_TOKEN_SECRET" "WEB_API_PASSWORD" "STAGING_PASSWORD" "V1_HISTORY_PASSWORD" "CRYPTO_RANDOM" "OT_JWT_AUTH_KEY" "OVERLEAF_SECURE_COOKIE" "OVERLEAF_TRUSTED_PROXY_IPS" -}}
+{{- $settings := include "overleaf.settings" . | fromYaml -}}
+{{- $managed = concat $managed (keys $settings) -}}
+{{- range $name, $_ := .Values.extraEnv -}}
+{{- if has $name $managed -}}
+{{- fail (printf "extraEnv.%s is managed by the chart; use the documented values/Secret" $name) -}}
+{{- end -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "overleaf.fullname" . }}
+  labels:
+    {{- include "overleaf.labels" . | nindent 4 }}
+data:
+  OVERLEAF_APP_NAME: {{ .Values.appName | quote }}
+  OVERLEAF_SITE_URL: {{ include "overleaf.siteUrl" . | quote }}
+  {{- if .Values.adminEmail }}
+  OVERLEAF_ADMIN_EMAIL: {{ .Values.adminEmail | quote }}
+  {{- end }}
+  OVERLEAF_MONGO_URL: {{ printf "mongodb://%s:27017/sharelatex?replicaSet=overleaf" (include "overleaf.mongoHost" .) | quote }}
+  OVERLEAF_REDIS_HOST: {{ printf "%s-redis" (include "overleaf.fullname" .) | quote }}
+  OVERLEAF_REDIS_PORT: "6379"
+  REDIS_HOST: {{ printf "%s-redis" (include "overleaf.fullname" .) | quote }}
+  REDIS_PORT: "6379"
+  OVERLEAF_BEHIND_PROXY: "true"
+  OVERLEAF_SECURE_COOKIE: "true"
+  OVERLEAF_TRUSTED_PROXY_IPS: "loopback"
+  V1_HISTORY_URL: "http://127.0.0.1:3100/api"
+  SANDBOXED_COMPILES: "false"
+  SANDBOXED_COMPILES_SIBLING_CONTAINERS: "false"
+  DOCKER_RUNNER: "false"
+  GIT_BRIDGE_ENABLED: "false"
+  ENABLE_CONVERSIONS: "true"
+  EMAIL_CONFIRMATION_DISABLED: "true"
+  {{- toYaml $settings | nindent 2 }}

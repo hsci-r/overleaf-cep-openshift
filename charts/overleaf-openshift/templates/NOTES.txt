@@ -1,0 +1,12 @@
+Overleaf CE+: {{ include "overleaf.siteUrl" . }}
+
+Watch startup (database checks and migrations run before the web service):
+  oc -n {{ .Release.Namespace }} logs -f deployment/{{ include "overleaf.fullname" . }}
+  oc -n {{ .Release.Namespace }} get pods,pvc,route
+
+Create the first administrator immediately at:
+  {{ include "overleaf.siteUrl" . }}/launchpad
+
+Back up MongoDB, Redis AOF, /var/lib/overleaf and the existing Secret.
+This is a single-instance CE+ deployment for trusted users; compiles share
+application credentials and network access. See the repository README.
