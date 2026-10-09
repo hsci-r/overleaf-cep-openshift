@@ -1,14 +1,18 @@
 {{- $root := . -}}
-{{- range $component, $p := dict "overleaf" .Values.persistence "mongodb" .Values.mongodb.persistence "redis" .Values.redis.persistence }}
+{{- $claims := dict "overleaf" .Values.persistence "mongodb" .Values.mongodb.persistence "redis" .Values.redis.persistence }}
+{{- if .Values.gitBridge.enabled }}
+{{- $_ := set $claims "gitBridge" .Values.gitBridge.persistence }}
+{{- end }}
+{{- range $component, $p := $claims }}
 {{- if not $p.existingClaim }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "overleaf.fullname" $root }}-{{ $component }}
+  name: {{ include "overleaf.fullname" $root }}-{{ $component | kebabcase }}
   labels:
     {{- include "overleaf.labels" $root | nindent 4 }}
-    app.kubernetes.io/component: {{ $component }}
+    app.kubernetes.io/component: {{ $component | kebabcase }}
   {{- if $p.retain }}
   annotations:
     helm.sh/resource-policy: keep

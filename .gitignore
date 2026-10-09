@@ -4,3 +4,4 @@ __pycache__/
 values.local.yaml
 dist/
 .local/
+node_modules/

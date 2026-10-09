@@ -1,8 +1,7 @@
 apiVersion: v2
 name: overleaf-openshift
 description: Overleaf CE+ with an arbitrary-UID image for OpenShift
-version: 0.3.0
-appVersion: "6.3.0-ext-v5.1"
+version: 0.1.0
 type: application
 kubeVersion: ">=1.25.0-0"
 sources:

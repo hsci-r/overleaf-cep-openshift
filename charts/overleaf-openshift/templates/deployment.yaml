@@ -20,7 +20,10 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
-      automountServiceAccountToken: false
+      automountServiceAccountToken: {{ eq .Values.compilation.backend "kubernetes" }}
+      {{- if eq .Values.compilation.backend "kubernetes" }}
+      serviceAccountName: {{ include "overleaf.fullname" . }}-runner
+      {{- end }}
       enableServiceLinks: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.imagePullSecrets }}
@@ -49,12 +52,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "overleaf.fullname" . }}
-            {{- range $secret := list .Values.smtp.existingSecret .Values.authentication.existingSecret .Values.integrations.existingSecret | uniq }}
-            {{- if $secret }}
-            - secretRef:
-                name: {{ $secret }}
-            {{- end }}
-            {{- end }}
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -64,7 +61,7 @@ spec:
             - name: {{ . }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ required "Set secrets.existingSecret" $root.Values.secrets.existingSecret }}
+                  name: {{ default (printf "%s-secrets" (include "overleaf.fullname" $root)) $root.Values.secrets.existingSecret }}
                   key: {{ . }}
             {{- end }}
             {{- range $name, $value := .Values.extraEnv }}
@@ -78,18 +75,16 @@ spec:
             timeoutSeconds: 5
             {{- toYaml .Values.startupProbe | nindent 12 }}
           readinessProbe:
-            exec:
-              command: [python3, /usr/local/lib/overleaf-openshift/healthcheck.py]
+            httpGet:
+              path: /status
+              port: http
             periodSeconds: 10
             timeoutSeconds: 5
-          # The web service binds to loopback; kubelet TCP probes use the pod IP.
-          # Dependency failures affect readiness; runit restarts crashed services.
+          # Runit restarts individual services; this detects a lost web endpoint.
           livenessProbe:
-            exec:
-              command:
-                - python3
-                - -c
-                - "import socket; socket.create_connection(('127.0.0.1', 4000), timeout=3).close()"
+            httpGet:
+              path: /status
+              port: http
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 6
@@ -98,7 +93,52 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/overleaf
+      {{- if .Values.gitBridge.enabled }}
+        - name: git-bridge
+          image: {{ .Values.gitBridge.image | quote }}
+          securityContext:
+            {{- include "overleaf.securityContext" . | nindent 12 }}
+          # Bypass upstream's root/chown wrapper; /conf is writable emptyDir.
+          command: [/start.sh]
+          env:
+            {{- $bridge := dict
+              "GIT_BRIDGE_API_BASE_URL" "http://127.0.0.1:3000/api/v0/"
+              "GIT_BRIDGE_OAUTH2_SERVER" "http://127.0.0.1:4000"
+              "GIT_BRIDGE_POSTBACK_BASE_URL" "http://127.0.0.1:8000"
+              "GIT_BRIDGE_ROOT_DIR" "/data/git-bridge"
+              "GIT_BRIDGE_REPOSTORE_MAX_FILE_SIZE" (mul .Values.uploads.maxSizeMB 1048576 | toString)
+            }}
+            {{- range $name, $value := mergeOverwrite $bridge .Values.gitBridge.extraEnv }}
+            - name: {{ $name }}
+              value: {{ $value | toString | quote }}
+            {{- end }}
+          ports:
+            - name: git-bridge
+              containerPort: 8000
+          startupProbe:
+            tcpSocket:
+              port: git-bridge
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: git-bridge
+          resources:
+            {{- toYaml .Values.gitBridge.resources | nindent 12 }}
+          volumeMounts:
+            - name: git-bridge-data
+              mountPath: /data/git-bridge
+            - name: git-bridge-config
+              mountPath: /conf
+      {{- end }}
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: {{ default (printf "%s-overleaf" (include "overleaf.fullname" .)) .Values.persistence.existingClaim }}
+      {{- if .Values.gitBridge.enabled }}
+        - name: git-bridge-data
+          persistentVolumeClaim:
+            claimName: {{ include "overleaf.claim" (dict "root" . "component" "gitBridge") }}
+        - name: git-bridge-config
+          emptyDir: {}
+      {{- end }}

@@ -1,0 +1,66 @@
+{{- if eq .Values.compilation.backend "kubernetes" }}
+{{- $namespace := required "Set compilation.kubernetes.namespace to a dedicated compiler namespace" .Values.compilation.kubernetes.namespace }}
+{{- if eq $namespace .Release.Namespace }}
+{{- fail "The compiler namespace must be separate from the application namespace" }}
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "overleaf.fullname" . }}-runner
+  labels:
+    {{- include "overleaf.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "overleaf.fullname" . }}-compiler
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "overleaf.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "overleaf.fullname" . }}-runner
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [get, create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "overleaf.fullname" . }}-runner
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "overleaf.fullname" . }}-runner
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "overleaf.fullname" . }}-runner
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "overleaf.fullname" . }}-compiler
+  namespace: {{ $namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: compiler
+      overleaf.org/runner: {{ include "overleaf.fullname" . }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+{{- end }}

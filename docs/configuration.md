@@ -1,120 +1,77 @@
 # Configuration
 
-The complete defaults are in [values.yaml](../charts/overleaf-openshift/values.yaml).
-The chart validates values and renders upstream environment variables. Use
-`extraEnv` for less common options and `extraEnvFrom` for additional Secrets.
-Do not repeat a chart-managed setting in `extraEnv`.
-
-| Values | Purpose |
-| --- | --- |
-| `registration.enabled`, `allowedEmailDomains` | Self-signup with emailed activation links. Domains are exact matches; `*.example.org` permits subdomains, excluding the base domain. An empty list permits every domain. Requires working SMTP. |
-| `compilation.timeoutSeconds`, `requestSizeMB`, `defaultCompiler` | Compile allowance (maximum 600 seconds), source request size, and default compiler for new projects. Both compile body limits are kept aligned. Existing users keep their stored compile allowance. |
-| `uploads.maxSizeMB`, `timeoutSeconds` | File/project upload size and processing timeout; the image applies the matching nginx body-size limit. |
-| `nginx.proxyTimeoutSeconds`, `keepaliveTimeoutSeconds`, `workerConnections`, `workerProcesses` | Internal proxy behavior. Set the Route timeout annotation to at least the internal proxy timeout. The compile timeout must be smaller. |
-| `features.historyRestore` | Experimental restore from project history. For older projects, see the migration below. |
-| `features.pandocConversions` | Experimental Word/Markdown import and document export; Pandoc and zip are included in the image. |
-| `features.chat`, `linkedFilesFromUrl` | Project chat and files linked from external URLs. |
-| `templateGallery.enabled`, `categories`, `labels` | Template gallery, category keys, display names and descriptions. `all` is added automatically. |
-| `templateGallery.nonAdminCanPublish`, `managerUserId` | Who can publish/manage templates. The manager is a non-admin MongoDB user ID. |
-| `sharing.publicAccess`, `anonymousReadWrite`, `linkSharing`, `restrictInvitesToExistingAccounts` | Visibility, sharing links and invitations. |
-| `retention.automaticDeletion`, `deletedUsersDays`, `deletedProjectsDays` | Permanent cleanup of soft-deleted users/projects. Automatic deletion is off by default. |
-| `smtp.host`, `port`, `secure`, `verifyCertificate`, `ignoreStartTLS`, `sender`, `replyTo`, `name` | SMTP server and sender. Port 25/587 normally uses `secure: false` with opportunistic STARTTLS and certificate checks. |
-| `smtp.existingSecret` | SMTP credentials in `OVERLEAF_EMAIL_SMTP_USER` and `OVERLEAF_EMAIL_SMTP_PASS`. |
-| `authentication.methods`, `settings`, `existingSecret` | CE+ LDAP, SAML and OIDC; simultaneous methods are supported. Use upstream environment names in `settings`; keep provider credentials/private keys in the Secret. |
-| `integrations.githubSync.enabled`, `clientId` | GitHub project synchronization; needs a GitHub OAuth application. |
-| `integrations.zotero.enabled`, `clientKey` | Zotero linked bibliography files; needs a Zotero OAuth application. |
-| `integrations.existingSecret` | `GITHUB_SYNC_CLIENT_SECRET`, `ZOTERO_CLIENT_SECRET`, and optionally persistent `TOKEN_CIPHER_PASSWORD`. Otherwise CE+ keeps its token cipher in the application PVC. Preserve it in backups. |
-| `resources`, `mongodb`, `redis`, `persistence` | CPU/memory, database cache and retained persistent storage. |
-
-Symbol palette, reference picker, review/track changes, editor tabs and the
-browser-based Python runner are supplied by CE+ without an enable switch.
-Docker sandboxed compiles and the separate Git bridge service are outside this
-chart: they require additional services and privileges. GitHub sync is independent
-of that Git bridge. This deployment remains suitable for trusted users.
-
-## Example
+See [values.yaml](../charts/overleaf-openshift/values.yaml) for deployment settings.
+Application features use upstream [CE+](https://github.com/yu-i-i/overleaf-cep/wiki/Extended-CE:-Environment-Variables)
+and [Overleaf](https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/environment-variables)
+variables in `extraEnv`; credentials belong in Secrets via `extraEnvFrom`.
+The chart manages service addresses, credentials, backend selection and
+compile/upload/proxy limits.
 
 ```yaml
-registration:
-  enabled: true
-  allowedEmailDomains: [example.org]
-smtp:
-  host: smtp.example.org
-  port: 587
-  sender: overleaf@example.org
-  existingSecret: overleaf-smtp
+extraEnv:
+  OVERLEAF_ENABLE_REGISTRATION_PAGE: "true"
+  OVERLEAF_ALLOWED_REGISTRATION_EMAIL_DOMAINS: example.org
+  OVERLEAF_EMAIL_SMTP_HOST: smtp.example.org
+  OVERLEAF_EMAIL_SMTP_PORT: "587"
+  OVERLEAF_EMAIL_FROM_ADDRESS: overleaf@example.org
+extraEnvFrom:
+  - secretRef:
+      name: overleaf-smtp # OVERLEAF_EMAIL_SMTP_USER / OVERLEAF_EMAIL_SMTP_PASS
+```
+
+External linked files and permanent resource deletion are opt-in through
+`ENABLED_LINKED_FILE_TYPES` and `ENABLE_CRON_RESOURCE_DELETION`.
+
+## Git bridge
+
+Enabled by default in the application pod with a separate retained PVC. Set
+`gitBridge.enabled: false` to disable it. Match `gitBridge.image` to the application's
+underlying CE release; use `gitBridge.extraEnv` for upstream bridge settings.
+File-size limits follow `uploads.maxSizeMB`. GitHub sync is configured separately
+through upstream variables.
+
+## Isolated Kubernetes compiles
+
+Create a dedicated compiler namespace. The installing identity must be able to
+manage its ServiceAccounts, Roles, RoleBindings and NetworkPolicies. Keep it free
+of application Secrets and PVCs; remove default network allow policies, which
+would override the chart's isolation.
+
+```yaml
 compilation:
-  timeoutSeconds: 600
-  requestSizeMB: 50
-uploads:
-  maxSizeMB: 100
-nginx:
-  proxyTimeoutSeconds: 900
-route:
-  annotations:
-    haproxy.router.openshift.io/timeout: 15m
-templateGallery:
-  enabled: true
-  labels:
-    thesis:
-      name: Theses
-      description: Department thesis templates
-features:
-  historyRestore: true
-  pandocConversions: true
+  backend: kubernetes
+  kubernetes:
+    namespace: overleaf-compiles
 ```
 
-For OIDC, for example:
+Each project uses a reusable, network-isolated runner. Provision quota for runner
+limits plus temporary overlap after application restarts. Each runner defaults to
+limits of 1.5 CPU, 8 GiB RAM and 2 GiB ephemeral storage.
 
-```yaml
-authentication:
-  methods: [oidc]
-  existingSecret: overleaf-oidc # OVERLEAF_OIDC_CLIENT_SECRET
-  settings:
-    OVERLEAF_OIDC_ISSUER: https://id.example.org
-    OVERLEAF_OIDC_AUTHORIZATION_URL: https://id.example.org/authorize
-    OVERLEAF_OIDC_TOKEN_URL: https://id.example.org/token
-    OVERLEAF_OIDC_USER_INFO_URL: https://id.example.org/userinfo
-    OVERLEAF_OIDC_LOGOUT_URL: https://id.example.org/logout
-    OVERLEAF_OIDC_CLIENT_ID: overleaf
-    OVERLEAF_OIDC_ALLOWED_EMAIL_DOMAINS: example.org
-```
+Kubernetes quotas control aggregate capacity; the application only serializes
+commands for the same project. `requestTimeoutSeconds` covers waiting, startup,
+transfers and execution; `compilation.timeoutSeconds` separately limits the compiler.
+Configure storage, idle expiry and Job lifetime under `compilation.kubernetes`.
+Keep nginx and Route timeouts above `requestTimeoutSeconds`.
+See the [runner design](../k8s-runner-design.md).
 
-Use your provider's discovery document for endpoints. Decide whether to keep
-local self-signup enabled when using external authentication.
+## Development
 
-## Migrating existing projects
-
-Back up the databases, application data and existing Secret before changing
-images. Keep the same PVCs and Secret. Helm rollback does not undo migrations.
-To allow history restore for existing projects after enabling the feature:
+`make check` requires Node.js, Python 3, Helm, kubectl and rsync, and runs Helm lint,
+Vitest unit tests and Mocha/Chai acceptance tests.
+`make check-integration` builds and smoke-tests the isolated compiler image.
 
 ```sh
-oc exec statefulset/overleaf-mongo -- mongosh --quiet mongodb://127.0.0.1/sharelatex \
-  --eval 'db.projects.updateMany({}, {$set: {"overleaf.history.rangesSupportEnabled": true}})'
+make image image-full image-compiler IMAGE_REPOSITORY=docker.io/YOUR_ACCOUNT/overleaf-cep-openshift
+make push push-full push-compiler IMAGE_REPOSITORY=docker.io/YOUR_ACCOUNT/overleaf-cep-openshift
 ```
 
-## Sources and image compatibility
-
-Configuration follows the [CE+ wiki](https://github.com/yu-i-i/overleaf-cep/wiki)
-and [upstream environment variables](https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/environment-variables).
-The application base is pinned to `overleafcep/sharelatex:6.3.0-ext-v5.1` by digest.
-The image installs TeX Live packages directly into the upstream CE+ base,
-adapts startup/nginx for arbitrary UIDs, and supplies the required
-`analyticsId` omitted by CE+ v5.1's public registration helper.
-
-## Publishing images
-
-Set the repository Actions variable `DOCKERHUB_USERNAME` and Secret
-`DOCKERHUB_TOKEN` (a Docker Hub access token with write access to your image
-repository). `DOCKERHUB_IMAGE` optionally overrides the Makefile repository.
-The publisher builds the default and `-full` images directly from upstream CE+.
-Normal pushes and pull requests validate the chart; image publication runs on
-manual dispatch or an image-version tag:
-
-```sh
-git tag image-6.3.0-ext-v5.1-openshift.3
-git push origin image-6.3.0-ext-v5.1-openshift.3
-```
-
-Use a new image version for each release and update `image.tag` in your values.
+Application builds select the newest published CE+ release; override with
+`OVERLEAF_BASE_IMAGE`. The compiler uses `texlive/texlive:latest-full`.
+The application image includes kubectl from the latest patch of Kubernetes 1.35;
+override the Docker build argument `KUBECTL_MINOR` for another server version.
+Keep the client within one minor release of the Kubernetes server.
+GitHub Actions publishes weekly, on manual dispatch or `image-*` tags after checks
+pass. Set the Actions variable `DOCKERHUB_USERNAME` and Secret `DOCKERHUB_TOKEN`;
+`DOCKERHUB_IMAGE` overrides the repository. `image-TAG` publishes `TAG`, `TAG-full`
+and `TAG-compiler`.

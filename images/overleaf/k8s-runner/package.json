@@ -1,0 +1,18 @@
+{
+  "name": "overleaf-openshift-k8s-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:acceptance",
+    "test:unit": "vitest run --config vitest.config.unit.js",
+    "test:acceptance": "mocha --timeout 15000 --require ./test/acceptance/setup.js \"test/acceptance/js/*Tests.js\""
+  },
+  "devDependencies": {
+    "ws": "8.22.0",
+    "chai": "4.5.0",
+    "chai-as-promised": "7.1.2",
+    "mocha": "11.7.5",
+    "vitest": "4.1.5"
+  }
+}

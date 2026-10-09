@@ -1,24 +1,23 @@
 # CSC Rahti
 
-Follow the [main README](../README.md); no Rahti-specific chart overrides are
-needed. Rahti's default StorageClass is `standard-csi`.
+Follow the [main README](../README.md). Rahti uses `standard-csi` storage by default.
+Create a project with description `csc_project: <project-number>` in CSC's console
+and use its Copy Login Command. Choose a unique `route.host` under `.2.rahtiapp.fi`.
 
-Create/select your project in CSC's console with its required
-`csc_project: <project-number>` description and use its Copy Login Command.
-Set `route.host` to a unique hostname under `.2.rahtiapp.fi`, covered by Rahti's
-ingress certificate.
-
-For outgoing email, CSC provides [`smtp.pouta.csc.fi:25`](https://docs.csc.fi/cloud/rahti/tutorials/email/)
-without authentication. Set these in your values, using a valid sender address:
+For [outgoing email](https://docs.csc.fi/cloud/rahti/tutorials/email/):
 
 ```yaml
-smtp:
-  sender: your.name@university.fi
-  host: smtp.pouta.csc.fi
-  port: 25
-  secure: false
-  verifyCertificate: true
+extraEnv:
+  OVERLEAF_EMAIL_FROM_ADDRESS: your.name@university.fi
+  OVERLEAF_EMAIL_SMTP_HOST: smtp.pouta.csc.fi
+  OVERLEAF_EMAIL_SMTP_PORT: "25"
+  OVERLEAF_EMAIL_SMTP_SECURE: "false"
+  OVERLEAF_EMAIL_SMTP_TLS_REJECT_UNAUTH: "true"
 ```
 
-Check the project-wide quota with `oc get appliedclusterresourcequota`; CPU,
-memory and storage limits must include MongoDB and Redis.
+Check shared CPU, memory and storage quota with `oc get appliedclusterresourcequota`.
+For [isolated compiles](../docs/configuration.md#isolated-kubernetes-compiles),
+create another Rahti project associated with the same CSC computing project and
+allow quota for its runners. In that dedicated namespace, set both default policies
+`allow-from-router` and `deny-other-namespaces-access` to `ingress: []`, `egress: []`
+and `policyTypes: [Ingress, Egress]`. The chart supplies runner RBAC and isolation.

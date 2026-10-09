@@ -36,5 +36,5 @@ https://{{ required "Set route.host to your unique hostname (e.g. overleaf.apps.
 {{- end -}}
 {{- define "overleaf.claim" -}}
 {{- $persistence := index .root.Values .component "persistence" -}}
-{{- default (printf "%s-%s" (include "overleaf.fullname" .root) .component) $persistence.existingClaim -}}
+{{- default (printf "%s-%s" (include "overleaf.fullname" .root) (.component | kebabcase)) $persistence.existingClaim -}}
 {{- end -}}

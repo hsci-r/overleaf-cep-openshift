@@ -1,4 +1,4 @@
-{{- $managed := list "OVERLEAF_APP_NAME" "OVERLEAF_ADMIN_EMAIL" "OVERLEAF_MONGO_URL" "OVERLEAF_REDIS_HOST" "OVERLEAF_REDIS_PORT" "REDIS_HOST" "REDIS_PORT" "OVERLEAF_SITE_URL" "OVERLEAF_BEHIND_PROXY" "V1_HISTORY_URL" "SANDBOXED_COMPILES" "SANDBOXED_COMPILES_SIBLING_CONTAINERS" "DOCKER_RUNNER" "GIT_BRIDGE_ENABLED" "ENABLE_CONVERSIONS" "EMAIL_CONFIRMATION_DISABLED" "OVERLEAF_INVITE_TOKEN_SECRET" "WEB_API_PASSWORD" "STAGING_PASSWORD" "V1_HISTORY_PASSWORD" "CRYPTO_RANDOM" "OT_JWT_AUTH_KEY" "OVERLEAF_SECURE_COOKIE" "OVERLEAF_TRUSTED_PROXY_IPS" -}}
+{{- $managed := list "KUBERNETES_RUNNER" "KUBERNETES_RUNNER_CONFIG" "KUBERNETES_REQUEST_TIMEOUT_SECONDS" "OVERLEAF_APP_NAME" "OVERLEAF_ADMIN_EMAIL" "OVERLEAF_MONGO_URL" "OVERLEAF_REDIS_HOST" "OVERLEAF_REDIS_PORT" "REDIS_HOST" "REDIS_PORT" "OVERLEAF_SITE_URL" "OVERLEAF_BEHIND_PROXY" "V1_HISTORY_URL" "SANDBOXED_COMPILES" "SANDBOXED_COMPILES_SIBLING_CONTAINERS" "DOCKER_RUNNER" "GIT_BRIDGE_ENABLED" "GIT_BRIDGE_HOST" "GIT_BRIDGE_PORT" "GIT_BRIDGE_REPOSTORE_MAX_FILE_SIZE" "OVERLEAF_INVITE_TOKEN_SECRET" "WEB_API_PASSWORD" "STAGING_PASSWORD" "V1_HISTORY_PASSWORD" "CRYPTO_RANDOM" "OT_JWT_AUTH_KEY" "OVERLEAF_SECURE_COOKIE" "OVERLEAF_TRUSTED_PROXY_IPS" -}}
 {{- $settings := include "overleaf.settings" . | fromYaml -}}
 {{- $managed = concat $managed (keys $settings) -}}
 {{- range $name, $_ := .Values.extraEnv -}}
@@ -13,6 +13,14 @@ metadata:
   labels:
     {{- include "overleaf.labels" . | nindent 4 }}
 data:
+  KUBERNETES_RUNNER: {{ eq .Values.compilation.backend "kubernetes" | toString | quote }}
+  {{- if eq .Values.compilation.backend "kubernetes" }}
+  {{- $runner := deepCopy .Values.compilation.kubernetes }}
+  {{- $_ := set $runner "owner" (include "overleaf.fullname" .) }}
+  {{- $_ := set $runner "serviceAccount" (printf "%s-compiler" (include "overleaf.fullname" .)) }}
+  KUBERNETES_RUNNER_CONFIG: {{ $runner | toJson | quote }}
+  KUBERNETES_REQUEST_TIMEOUT_SECONDS: {{ .Values.compilation.kubernetes.requestTimeoutSeconds | toString | quote }}
+  {{- end }}
   OVERLEAF_APP_NAME: {{ .Values.appName | quote }}
   OVERLEAF_SITE_URL: {{ include "overleaf.siteUrl" . | quote }}
   {{- if .Values.adminEmail }}
@@ -30,7 +38,8 @@ data:
   SANDBOXED_COMPILES: "false"
   SANDBOXED_COMPILES_SIBLING_CONTAINERS: "false"
   DOCKER_RUNNER: "false"
-  GIT_BRIDGE_ENABLED: "false"
-  ENABLE_CONVERSIONS: "true"
-  EMAIL_CONFIRMATION_DISABLED: "true"
+  GIT_BRIDGE_ENABLED: {{ .Values.gitBridge.enabled | toString | quote }}
+  GIT_BRIDGE_HOST: "127.0.0.1"
+  GIT_BRIDGE_PORT: "8000"
+  GIT_BRIDGE_REPOSTORE_MAX_FILE_SIZE: {{ mul .Values.uploads.maxSizeMB 1048576 | toString | quote }}
   {{- toYaml $settings | nindent 2 }}
