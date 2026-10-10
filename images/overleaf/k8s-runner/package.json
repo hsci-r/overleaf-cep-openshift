@@ -13,6 +13,6 @@
     "chai": "4.5.0",
     "chai-as-promised": "7.1.2",
     "mocha": "11.7.5",
-    "vitest": "4.1.5"
+    "vitest": "4.1.11"
   }
 }
