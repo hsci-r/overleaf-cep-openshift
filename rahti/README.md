@@ -4,11 +4,17 @@ Follow the [main README](../README.md). Rahti uses `standard-csi` storage by def
 Create a project with description `csc_project: <project-number>` in CSC's console
 and use its Copy Login Command. Choose a unique `route.host` under `.2.rahtiapp.fi`.
 
-For [outgoing email](https://docs.csc.fi/cloud/rahti/tutorials/email/):
+For [outgoing email](https://docs.csc.fi/cloud/rahti/tutorials/intermediate/email/),
+use an authorized sender domain. With CSC's relay, its SPF record must include
+`include:hosted-at.csc.fi`; see [CSC's authentication guidance](https://docs.csc.fi/cloud/pouta/additional-services/#about-sender-policy-framework-spf-and-others).
+An existing university address alone does not authorize CSC to send for that domain.
+Alternatively, use your email provider's authenticated SMTP service, or obtain a
+CSC-approved sender address.
 
 ```yaml
 extraEnv:
-  OVERLEAF_EMAIL_FROM_ADDRESS: your.name@university.fi
+  OVERLEAF_EMAIL_FROM_ADDRESS: overleaf@your-authorized-domain.example
+  OVERLEAF_EMAIL_REPLY_TO: your.name@university.fi
   OVERLEAF_EMAIL_SMTP_HOST: smtp.pouta.csc.fi
   OVERLEAF_EMAIL_SMTP_PORT: "25"
   OVERLEAF_EMAIL_SMTP_SECURE: "false"
